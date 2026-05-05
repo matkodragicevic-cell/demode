@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
+import { onAuthStateChanged } from "firebase/auth";
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "firebase/firestore";
 
 const SERVICES = ["Najam kuće za odmor", "Paintball", "Najam + paintball"];
@@ -83,18 +84,25 @@ export default function App() {
   const [showDone, setShowDone] = useState(false);
 
   useEffect(() => {
-    const q = query(collection(db, "records"), orderBy("datum", "desc"));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      setRecords(data);
-      setLoading(false);
+    let unsubRecords = () => {};
+    let unsubTodos = () => {};
+
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        const q = query(collection(db, "records"), orderBy("datum", "desc"));
+        unsubRecords = onSnapshot(q, (snapshot) => {
+          const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+          setRecords(data);
+          setLoading(false);
+        });
+        unsubTodos = onSnapshot(collection(db, "todos"), (snapshot) => {
+          const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+          setTodos(data);
+        });
+      }
     });
-    // Load todos
-    const unsub2 = onSnapshot(collection(db, "todos"), (snapshot) => {
-      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      setTodos(data);
-    });
-    return () => { unsub(); unsub2(); };
+
+    return () => { unsubAuth(); unsubRecords(); unsubTodos(); };
   }, []);
 
 
